@@ -77,20 +77,20 @@ class Msp_Abandoned_Cart
          $hook = 'await_order_for_cart_' . $this->cart['hash'];
          $this->hooks['before'] = $hook;
 
-         $one_hour = time() + HOUR_IN_SECONDS;
+         $one_hour = time() + 30;
          if( ! wp_next_scheduled( $hook ) ){
             wp_schedule_single_event( $one_hour, $hook, $this->cart );
             add_action( $hook, array( $this, 'check_order_for_cart' ) );
          }
      }
 
-     public function get_session( $customer_id )
+     public static function get_session( $customer_id )
      {
         $handler = new WC_Session_Handler();
         return $handler->get_session( $customer_id );
      }
 
-     public function check_order_for_cart( $cart )
+     public static function check_order_for_cart( $cart )
      {
         /**
          * Splits up the session cookie, uses the first part to grab the cart session
@@ -98,26 +98,22 @@ class Msp_Abandoned_Cart
          */
          $session = $this->get_session( $cart['customer_id'] );
          
-         if( false === $session ){
-             remove_action( $this->hooks['before'], array( $this, 'check_order_for_cart' ) );
-        } else {
-            // create the email cron
+         if( false !== $session ){
             $hook = 'email_customer_abandoned_cart_' . $cart['hash'];
             $this->hooks['after'] = $hook;
 
-            if( ! wp_next_scheduled( $hook ) ){
-                wp_schedule_single_event( time() + DAY_IN_SECONDS, $hook, $cart );
-                add_action( $hook, array( $this, 'email_customer_abandoned_cart' ), $cart );
-            }
+            wp_schedule_single_event( time() + DAY_IN_SECONDS, $hook, $cart );
+            add_action( $hook, array( $this, 'email_customer_abandoned_cart' ) );
          }
+         remove_action( $this->hooks['before'], array( $this, 'check_order_for_cart' ) );
      }
 
-    public function email_customer_abandoned_cart( $cart ){
+    public static function email_customer_abandoned_cart( $cart ){
         $session = $this->get_session( $cart['customer_id'] );
         $hook = $this->hooks['after'];
         
         if( false === $session ){
-            remove_action( $hook, array( $this, 'set_email_user_cron' ) );
+            remove_action( $hook, array( $this, 'email_customer_abandoned_cart' ) );
         } else {
             ob_start();
             var_dump( $this->cart );
